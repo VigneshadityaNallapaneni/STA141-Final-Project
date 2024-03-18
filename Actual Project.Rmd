@@ -1,0 +1,526 @@
+---
+title: "Neurological Behavior and Prediction: A Closer Study"
+date:  "Written By: Vigneshaditya Nallapaneni    ID: 919271920 "
+output: html_document
+---
+```{r, echo=FALSE, eval=FALSE}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(tidyverse)
+library(caret) 
+library(xgboost)
+library(pROC)
+
+```
+# Abstract
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;This report contains information regarding Steinmetz's experiment around optogenetics and massively scaled neural recording experiments to study the neural behavior surrounding mice. The mice are placed in a controlled laboratory and monitored by a behavioral apparatus. Their primary job is to differentiate one visual stimuli from another by choosing which one has a higher contrast. As the mice are making their decision, their neuron activity is being monitored along with the success rate. The aim of this is to see how mice learn to adapt and make decisions along with how their brain responds to the same exercise throughout the trials. The spike trains in the data is what Steinbetz put emphasis on as it tells researchers what part of the brain the mice are focusing their actions on and if one part of the brain leads to higher rates of success than the other. This would help researchers determine if the mice are acting based on randomness or have a set memory that makes them realize that solving such a problem requires this part of the brain or using this process and how the parts of the brain being used change over time/how the parts of the brain in general effect the success rate. The experiment itself has outside factors that aren't in control of Steinbetz, such as how fast one individual mouse is able to understand the problem as compared to others and to an extent, a decent variability of luck. Furthermore, Steinbetz chooses to have a different number of trials for each mouse in the experiment which complicates things further. I've analyzed the data from the experiment in hopes of creating a predictive model that is able to as accurately as possible, predict what will happen for a specific mouse in a new trial with a new contrast number. There are already thousands of practice trial data at my disposal and through **EDA**, I'm able to create a predictive model integrating already existing data to predict the outcome of new experimental trials that have yet to been conducted. This report analyzes the data that has already been produced, explains what parts are needed to create a successful prediction model, and how those parts are integrated to create something that excels in model training. 
+
+# Introduction
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;This is an extensive, elaborate report on the perceptual decision making of mice through processing sensory information. It aims to answer questions that are unknown about the performance of the brain, specifically how the neurons conducting a process choose to make an action and how that action is thus executed. Steinmetz has already done a credible study with the same variables and environment and this report is a continued research on that publication. In this project, subsets of the data collected from Steinmetz's publication is used to make a more accurate analysis on the way the brain works. There is a pattern to how the brain functions and how different parts of the brain are able to coordinate together to get something established or to have an action be performed. Throughout the experiment, there were a total of 10 mice along with 39 sessions with each session having several hundred trials. A mouse was positioned between two screens varying in contrast levels `{0, 0.25, 0.5, 1}`. The levels of contrast range from 0 to 1, with 0 having no stimulus while 1 having the largest amount. Initially, the natural instinct upon mice is to radiate towards anything that is interesting but through having several hundred trials and repeated environments, the subject slowly begins to learn. 
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The mice are repeatedly put in a condition where they're trained to learn the difference in contrasts and picking the correct contrast results in a reward while choosing incorrectly is a penalty. The subject is essentially forced to learn what is the right option because there is only one correct option or one choice that doesn't lead to a penalty. It not only informs the subject of the difference in two options but also to decipher what it means to be right or wrong in it's actions. And throughout this process, Steinmetz studies the brain of the mice, the activities on the neurons in the visual cortex was one of the many variables that were recorded. This data is visually displayed through spike trains, meaning they're collections of the timestamps in which the neurons were being responsive or "acting". 
+
+**Listed below are the variables for the trial**
+
+Variables      Purpose/DEFINITION
+-------------  --------------------
+feedback_type   type of the feedback, 1 for success and -1 for failure
+contrast_left   contrast of the left stimulus
+contrast_right  contrast of the right stimulus
+time            centers of the time bins for `spks`
+spks            numbers of spikes of neurons in the visual cortex in time bins defined in `time`
+brain_area      area of the brain where each neuron lives
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 
+![](C:/Users/vigne/OneDrive/Pictures/Screenshots/Screenshot 2024-03-16 170053.png){#id .class width=500 height=350px}
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;**Burgess, Lak, Steinmetz, Zatka-Haas, et al _Cell Reports_ 2019**
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The graph above displays the results for stimulus on the right and left hand of the screen. It can be assumed that the higher the contrast is for either side, the higher probability that it's decision making will be correct. The data points seem to increase in percent right as the percent of contrast also increase, there is a positive acceleration between both variables here. There is also a third test being done, the condition that no stimulus is set at all which accurately reflects the thoughts of the researchers since the data points for this test are randomly scattered and cannot be reduced to a reasonable flow of logic. 
+
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+![](C:/Users/vigne/OneDrive/Pictures/Screenshots/stascreenshot1.png){#id .class width=600 height=350px}
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;**Burgess, Lak, Steinmetz, Zatka-Haas, et al _Cell Reports_ 2019**
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The graph on the left(above) is identical to the first graph shown further above but this time with the trend lines. This makes the data easier to see and as thousands of trials are being conducted, the researchers are slowly noticing a pattern as explained before. The higher the contrast, the higher the probability the mice pick the correct option. On the other hand, there are cases where there is no visual stimuli present in the environment. In this case, the mice have slowly learned that not turning the wheel to the right or left but rather not making a decision at all would also make them correct. In this way, the mice are able to differentiate not only what the right or wrong is but what their choice particularly makes their actions correct. The subject is learning that neither sides having stimuli will imply there is no right answer and the one side having higher contrast would be correct. The graphs on the graph on the right is a visual representation of all the possible outcomes in the experiment and the result of those outcomes in grid format. We can see that the left and right choices are actually traded off from the colors, one is the direct opposite of the other in terms of a normal x and y reflection which means the results of both outcomes(stimulus on left/right) are close enough to project the same output. 
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The purpose of this report is to explore and create new findings in the already well researched publication of Steinmetz. I've done coding on what is to be believed as close to accurate a predictive model of the data. For example, the models running over the first 18 sessions in the first section of the report was what was initially used to make a predictive model. We can observe the trends cause in this data to make an algorithm that is able to accurately predict future data flow and essentially, what decision the mice can make from the patterns in spike trains. The report is broken down into three components, the Exploratory Data Analysis, the Data Integration, and the Predictive Modeling. 
+
+# Exploratory Analysis
+- Dataset consists of 18 RDS Files each containing data on one session
+
+
+- Each Dataset contains:
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;1. `mouse_name` -> Referring to the name of the mouse
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;2. `date_exp` -> Referring to the date of that experiment
+
+```{r echo=FALSE, results='hide',message=FALSE}
+
+session=list()
+for(i in 1:18){
+  session[[i]]=readRDS(paste('./Data/session',i,'.rds',sep=''))
+  print(session[[i]]$mouse_name)
+  
+  print(session[[i]]$date_exp)
+#This code chunk prints out the data from Session 1 to 18  
+}
+```
+```{r echo=FALSE, results='hide',message=FALSE}
+names(session[[1]])
+#Prints out what is in a session
+```
+```{r echo=FALSE, results='hide',message=FALSE}
+dim(session[[1]]$spks[[1]]) 
+length(session[[1]]$brain_area)
+session[[1]]$spks[[1]][6,]
+# Prints out the trial
+```
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;![](C:/Users/vigne/OneDrive/Pictures/Screenshots/stascreenshot2.png){#id .class width=850 height=150px}
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The output above is the beginning of our understanding of our data to explore further into the analysis portion. The best way to analyze this data from an outsider perspective or to essentially, summarize the findings is through printing a trial as done above. Throughout the entire study, there were a total of 9,538 trials that were conducted. The first output shows the dimension of the first session along with the *numbers of spikes of neurons in the visual cortex in time bins defined in `time`*, referring the to the variable table at the start. And as seen from the output, the dimension seems to be `734` with the spks variable having a value of 40. The second output displays the length of the function which is the same as the dimension. The last output shows that in session 1, trail 1, the amount of successes or failures. **NOTE: 1 = Success, 0 = Failure**. However, this logically makes sense as the earlier sessions won't have as accurate or conniving results as the later sessions. 
+
+```{r echo=FALSE, results='hide',message=FALSE}
+session[[1]]$spks[[1]][6,3] 
+session[[1]]$brain_area[6]
+#Connects the neuron spike with the brain region
+```
+```{r echo=FALSE, results='hide',message=FALSE}
+library(magrittr)
+library(tibble)
+library(dplyr)
+get_trail_data <- function(session_id, trail_id){
+  spikes <- session[[session_id]]$spks[[trail_id]]
+  if (any(is.na(spikes))){
+    disp("value missing")
+  }
+
+  #trail_tibble <- as_tibble(spikes) %>% set_names(binename) %>%  add_column("brain_area" = session[[session_id]]$brain_area ) %>% group_by(brain_area) %>% summarize( "sum_spikes" =across(everything(),sum),.groups = "drop") 
+  trail_tibble <- tibble("neuron_spike" = rowSums(spikes))  %>%  add_column("brain_area" = session[[session_id]]$brain_area ) %>% group_by(brain_area) %>% summarize( region_sum_spike = sum(neuron_spike), region_count = n(),region_mean_spike = mean(neuron_spike)) 
+  trail_tibble  = trail_tibble%>% add_column("trail_id" = trail_id) %>% add_column("contrast_left"= session[[session_id]]$contrast_left[trail_id]) %>% add_column("contrast_right"= session[[session_id]]$contrast_right[trail_id]) %>% add_column("feedback_type"= session[[session_id]]$feedback_type[trail_id])
+  trail_tibble
+}
+trail_tibble_1_2 <- get_trail_data(1,2)
+trail_tibble_1_2
+```
+
+```{r echo=FALSE, results='hide',message=FALSE}
+
+get_session_data <- function(session_id){
+  n_trail <- length(session[[session_id]]$spks)
+  trail_list <- list()
+  for (trail_id in 1:n_trail){
+    trail_tibble <- get_trail_data(session_id,trail_id)
+    trail_list[[trail_id]] <- trail_tibble
+  }
+  session_tibble <- do.call(rbind, trail_list)
+  session_tibble <- session_tibble %>% add_column("mouse_name" = session[[session_id]]$mouse_name) %>% add_column("date_exp" = session[[session_id]]$date_exp) %>% add_column("session_id" = session_id) 
+  session_tibble
+}
+session_1 <- get_session_data(1)
+head(session_1)
+```
+```{r echo=FALSE, results='hide',message=FALSE}
+binename <- paste0("bin", as.character(1:40))
+
+get_trail_functional_data <- function(session_id, trail_id){
+  spikes <- session[[session_id]]$spks[[trail_id]]
+  if (any(is.na(spikes))){
+    disp("value missing")
+  }
+
+  trail_bin_average <- matrix(colMeans(spikes), nrow = 1)
+  colnames(trail_bin_average) <- binename
+  trail_tibble  = as_tibble(trail_bin_average)%>% add_column("trail_id" = trail_id) %>% add_column("contrast_left"= session[[session_id]]$contrast_left[trail_id]) %>% add_column("contrast_right"= session[[session_id]]$contrast_right[trail_id]) %>% add_column("feedback_type"= session[[session_id]]$feedback_type[trail_id])
+  
+  trail_tibble
+}
+get_session_functional_data <- function(session_id){
+  n_trail <- length(session[[session_id]]$spks)
+  trail_list <- list()
+  for (trail_id in 1:n_trail){
+    trail_tibble <- get_trail_functional_data(session_id,trail_id)
+    trail_list[[trail_id]] <- trail_tibble
+  }
+  session_tibble <- as_tibble(do.call(rbind, trail_list))
+  session_tibble <- session_tibble %>% add_column("mouse_name" = session[[session_id]]$mouse_name) %>% add_column("date_exp" = session[[session_id]]$date_exp) %>% add_column("session_id" = session_id) 
+  session_tibble
+}
+
+```
+
+```{r,eval=FALSE}
+session_list = list()
+for (session_id in 1: 18){
+  session_list[[session_id]] <- get_session_data(session_id)
+}
+full_tibble <- do.call(rbind, session_list)
+full_tibble$success <- full_tibble$feedback_type == 1
+full_tibble$success <- as.numeric(full_tibble$success)
+full_tibble$contrast_diff <- abs(full_tibble$contrast_left-full_tibble$contrast_right)
+```
+```{r,eval=FALSE}
+session_list = list()
+for (session_id in 1: 18){
+  session_list[[session_id]] <- get_session_functional_data(session_id)
+}
+full_functional_tibble <- as_tibble(do.call(rbind, session_list))
+full_functional_tibble$session_id <- as.factor(full_functional_tibble$session_id )
+full_functional_tibble$contrast_diff <- abs(full_functional_tibble$contrast_left-full_functional_tibble$contrast_right)
+
+full_functional_tibble$success <- full_functional_tibble$feedback_type == 1
+full_functional_tibble$success <- as.numeric(full_functional_tibble$success)
+```
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;![](C:/Users/vigne/OneDrive/Pictures/Screenshots/stascreenshot3.png){#id .class width=850 height=150px}
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;![](C:/Users/vigne/OneDrive/Pictures/Screenshots/stascreenshot4.png){#id .class width=850 height=150px}
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The screenshots of the data above are the results of summarizing the output of data in session one and trial two. The first screenshot gets the data from that specific experiment and the result is printed out above for us to see. The function `get_trial_data` has two parameters which are the "session_id" and "trial_id". We first need to extract the spike data so the "spikes" variable is assigned to it's specific spike data, which includes the session number and trial number. The if condition checks for any missing values since we don't want an error printed within our dataset and any missing value should therefore be replaced by NA. Lastly, the trial tibble needs to be created, a column named `neuron_spike` is inserted that contains the sum of the spikes for each row. Additionally, there are more columns that are calculated using the "summarize()" command, columns such as `region_sum_spike`, `region_count`, and `region_mean_spike`. And ofcourse the trial tibble is return in a neat table format for us to visualize. The second printed table is a simpler version of the first table, only printing the head of the first session. 
+```{r,echo=FALSE, eval=FALSE}
+head(full_functional_tibble)
+```
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;![](C:/Users/vigne/OneDrive/Pictures/Screenshots/stascreenshot5.png){#id .class width=850 height=150px}
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The screenshot above is another way of data processing. The average of the neuron spikes over each time bin for each trial as `trial_bin_average` and the table above displays the proper information for each trial. The columns for example contain the average spike rate for each of the time bins. We have defined a function "get_session_data" that takes the session ID as input, while in the function the number of trials are determined using n_trail'. An empty list is created to store the trial data while there is an iterating loop that continously calls `get_trail_data` to obtain the trail data. Lastly, we do `do.call(rbind, trail_list)` with additional lines being added for the mouse name, experiment date, and session ID. The `get_trail_functional_data` function takes the session ID and trial ID as input, extracts the spike data for their specified session and trial(while also indicating any missing values), and calculates the average spike rate for each time bin, which is indicated by `trail_bin_average`. The data is converted into a tibble with additional columns that are thus added for the remaining values, which are `trail_id`, `contrast_left`, `contrast_right`, and `feedback_type`.The last function `get_session_functional_data` is similar to the function `get_session_data` but it has an emphasis on the functional data present instead of the spike data. It iterates over all the trials present, calling the `get_trail_functional_data` which is then combined into a tibble and printed with the extra columns mentioned above. And of course, the head is printed. 
+
+```{r, echo=FALSE ,eval=FALSE}
+#This code shows the number of nuerons that are present in each session, not included in the knit because it's basic/explained later
+full_tibble %>% filter (trail_id==1) %>% group_by(session_id) %>% summarise(sum(region_count))
+```
+
+```{r, echo=FALSE,eval=FALSE}
+#This chunk prints out the number brain area of each of the sessions, not included in the knit because it's basic/explained later
+full_tibble %>% group_by(session_id) %>% summarise(unique_area = n_distinct(brain_area))
+```
+
+```{r, echo=FALSE,eval=FALSE}
+#This chunk shows a table of the average spike rate over each session, not included in the knit because it's basic/explained later
+average_spike <-full_tibble %>% group_by( session_id, trail_id) %>% mutate(mean_spike = sum(region_sum_spike)/sum(region_count))
+average_spike %>% group_by(session_id) %>% summarise(mean_session_spike = mean(mean_spike))
+```
+
+```{r,echo=FALSE,eval=FALSE}
+#Explained in the paragraph below
+ggplot(full_tibble, aes(x =session_id , y = brain_area)) +
+  geom_point() +
+  labs(x = "session_id" , y ="brain_area") +
+  scale_x_continuous(breaks = unique(full_tibble$session_id)) +  
+  theme_minimal()
+```
+**NOTE: The segment below discusses the EDA**
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;![](C:/Users/vigne/OneDrive/Pictures/Screenshots/stascreenshot6.png){#id .class width=850 height=400px}
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The graph above is designed to create a scatterplot that visualizes the relationship between `session_id` and `brain_area` from the `full_tibble` dataset. I've created a ggplot function that initializes the ggplot object and displays the two variables discussed above. We can see that the x variable is mapped to the Session ID and the y is the Brain Area. I've then points using the "geom_point" command, with each point representing a combination(relationship) between Session ID and Brain Area. We can see from the scatterplot that the first sessions don't target many areas of the brain but this slowly disappears as the targeted brain areas are more scattered through the rest of the sessions. It's unusual because the scenarios the mice are given doesn't change, they're a nested or set amount of environments that are made so having different regions of the brain being used, especially after the first few experiments, gives a sense of randomization to this process. One thing that Steinmetz noticed in his data is that when the mouse selected the `ipsilateral stimulus`, most of the areas were activated once again, but **VIS** and **SCs** were now the last areas to respond in the sessions as compared to the first in previous sessions. Another observation is when the mouse misses the `contralateral stimulus`, which led to no action, however, there was still activity found in the visual pathway. This visual pathway consisted of the classical visual areas, areas such as the basal ganglia or other "midbrain" structures. I found it interesting how these areas were captured but the action wasn't able to or failed to propogate to the rest of the brain/globally. We can also see that when the mouse missed an `ipsilateral stimulus`, the records were actually silent, which means that the activity following the trial onset was only present when the mice itself was moving, and this would mean there is no connection to a specific stimulus or action. 
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The interesting patterns of the data revolve around the brain area and which parts get impacted during which sessions and which parts of the brain area lead to the higher rates of success. This part in specific will be discussed and visualized more below. The most obvious thing to do is calculate the success rate for each trial and observe what factors make that trial a success. The series of tables below show the success rate over different groups(session and mouse), the contrast difference distribution(and how it effects the success rate), and if the success rate differs among mice caused by the different distributions of contrast difference. 
+
+```{r,echo=FALSE,eval=FALSE}
+#This code estimates the success rate through the different sessions, it is explained in the paragraph below and the knitted R markdown
+full_functional_tibble %>% group_by(session_id) %>% summarize(success_rate = mean(success, na.rm = TRUE))
+```
+```{r,echo=FALSE,eval=FALSE}
+#This code shows the success rate for each mouse, it is explained in the paragraph below and the knitted R markdown
+full_functional_tibble %>% group_by(mouse_name) %>% summarize(success_rate = mean(success, na.rm = TRUE))
+```
+
+![](C:/Users/vigne/OneDrive/Pictures/Screenshots/stascreenshot7.png){#id .class width=450 height=350px}
+![](C:/Users/vigne/OneDrive/Pictures/Screenshots/stascreenshot8.png){#id .class width=425 height=275px}
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The table on the left(above) shows the success rate over different groups by their session and mouse. We can see that the success rate is lowest during the first session and highest during the end. This is visual, numerical proof of how the mice are slowly learning to make the correct choice. A **20 Percent** increase in success cannot be attributed to luck and we can therefore confidently conclude that the mice are getting smart with their decisions throughout the sessions. The table on the right shows the success rate of each mouse in general throughout all the tables. It's true that we can control the environment and the scenario(levels of contrast) that the mouse are given but we can't control the ability to learn for a subject. How fast a mouse processes information and learns something is something that is independent to them and can't be impacted by the researchers. For example, it's shown that Lederberg is right **13% more** of the time than Cori which isn't a small percent. A few of the mice are genetically smarter and this is an uncontrollable factor. 
+
+```{r,echo=FALSE,eval=FALSE}
+full_functional_tibble %>% group_by(contrast_diff) %>% count() %>% 
+  ungroup() %>% 
+  mutate(perc = `n` / sum(`n`)) %>% 
+  arrange(perc) %>%
+  mutate(labels = scales::percent(perc))
+```
+```{r,echo=FALSE,eval=FALSE}
+full_functional_tibble %>% group_by(contrast_diff) %>% summarize(success_rate = mean(success, na.rm = TRUE))
+```
+![](C:/Users/vigne/OneDrive/Pictures/Screenshots/stascreenshot9.png){#id .class width=440 height=275px}
+![](C:/Users/vigne/OneDrive/Pictures/Screenshots/stascreenshot10.png){#id .class width=400 height=275px}
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The table on the left(above) shows the contrast difference distribution. We can see that the contrast of `0.25` for example has a total of **718** trials, which makes up **14.13108 percent** of the entire population of trials. Similarly, this data is shown visually for the rest of the contrasts. One observation that can be made is there doesn't seem to be an equal amount of trials since  The number of trials that has a contrast of `1.00` is double the amount that has the contrast for `0.25`. It appears that the amount of trials for each contrast level was randomized but recorded for research purposes. The table on the right shows the success rate for each of the contrast levels. It can be confidently assumed that the success rate increases as the level of contrast increases. The mouse seem to find it less difficult to make a decision if the contrast on one side is significantly higher than the other. And that would make sense, if the level of contrast is higher, the mouse is able to much more easily interpret what is right or wrong. In fact, the difference in success rate of contrast level `0.00` and `1.00` is **almost 18 percent**.  
+
+```{r,echo=FALSE,eval=FALSE}
+counts_df <- full_functional_tibble[c('mouse_name', 'contrast_diff')]
+counts_df$contrast_diff <- as.factor(counts_df$contrast_diff)
+counts <- table(counts_df)
+
+percentages <- prop.table(counts, margin = 1)
+percentages
+
+```
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;![](C:/Users/vigne/OneDrive/Pictures/Screenshots/stascreenshot11.png){#id .class width=800 height=350px}
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The table above is made to visualize if there is a difference in success rate among the mice for each level of contrast. It helps us understand how each mice is performing for each level of contrast. We observed before that Cori for example had the lowest success rate overall at a **63 percent**, especially in comparison to Lederberg's **76 percent**. However, this table shows that the level of success for Cori for contrast level `0.00` is actually **3 percent higher** than the contrast level of Lederberg despite a lower success rate of 13 percent. This shows that there is a degree of randomization to this since we can't inherently control how the mice process information. For example, we can't assume that the mouse is trying to pick what's right instead of something random. We basically can't assume that the mice is making a legitimate effort in what is actually a randomized, illogical, and thoughtless action in the POV of the mouse. These are factors to definitely consider when making the prediction model. We also observed in a table above that there is an overall higher success rate as the contrast increases but that doesn't apply to a mouse like Forssmann who had the highest success rate with a contrast level of `0.00`. Furthermore, the amount of trials that have been calculated for each contrast level differ so the success rate isn't taken with respect to each scenarioro. This is another factor that must be considered when making my predictive model.   
+
+```{r,echo=FALSE, eval=FALSE}
+#This code chunk will be explained along with the respective graphs below
+full_functional_tibble$trail_group = cut(full_functional_tibble$trail_id, breaks = seq(0, max(full_functional_tibble$trail_id), by = 25),include.lowest = TRUE)
+levels(full_functional_tibble$trail_group) <- seq(0, max(full_functional_tibble$trail_id), by = 25)[2:18]
+```
+
+```{r,echo=FALSE, eval=FALSE}
+#This code chunk will be explained along with the respective graphs below
+success_rate <- aggregate(success ~ session_id + trail_group, data = full_functional_tibble, FUN = function(x) mean(x) )
+ggplot(success_rate, aes(x = trail_group, y = success)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~session_id, ncol=3) +
+      theme_bw()
+
+```
+![](C:/Users/vigne/OneDrive/Pictures/Screenshots/stascreenshot12.png){#id .class width=900 height=400px}
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The image above visualizes the graphs of the first 18 sessions and I've printed this out to see how our success rate has changed throughout time. I first binned the trials into groups of 25 bins using the "cut()" function, dividing the ranges of the Trial IDs by using the break argument `(seq(0, max(full_functional_tibble$trail_id), by = 25))`. Each interval represents a different 25 trials with the lowest Trial ID being in the first interval using `include.lowest = TRUE` and subsequently moving onto the next interval as the trial number increases. The success rate is then calculated for each interval and then inputted into a ggplot for simple understanding. And through this visual, we can observe any patterns and we saw before that as the number of trials increased, the percentage of successful responses has also increased. It's not seen as clearly here because it seems that the graphs are randomized but I'm assuming that the overall average success rate has increased as the trials do. This is crucial information that I can utilize when making my predictive model because it's easier to see how the each interval of 25 bins changes in respect to success rate. 
+
+The success rate change over time for individual mouse:
+
+```{r,echo=FALSE, eval=FALSE}
+success_rate <- aggregate(success ~ mouse_name + trail_group, data = full_functional_tibble, FUN = function(x) mean(x) )
+ggplot(success_rate, aes(x = trail_group, y = success)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~mouse_name) +
+      theme_bw()
+```
+![](C:/Users/vigne/OneDrive/Pictures/Screenshots/stascreenshot13.png){#id .class width=900 height=400px}
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The graphs above show the success rate over time for each individual mouse, the main difference was `facet_wrap()` was positioned around the Mouse name rather than the Session ID. This is the same data as the previous graph but separated for each individual mouse. Cori and Forssmann didn't have as many trials as Hench and Lederberg which is something that I have to keep in mind when making my predictive model. The predictive model for this problem is difficult because there isn't the same established base for each subject as in other normal problems. In this scenario, each mouse has it's own degree of learning ability, one mouse is lucky or simply put, smarter, than the other. And some mice have more experiments run on them than the other so it becomes increasingly more difficult as the number of factors increase but the impact of those factors differ for each mice, such as number of trials for each subject.   
+
+```{r,echo=FALSE, eval=FALSE}
+#This chunk of code will be explained along with the output of the graphs in the paragraph below, can be found in the KNIT html
+ggplot(average_spike, aes(x = trail_id, y = mean_spike)) + 
+  geom_line()+
+  geom_smooth(method = "loess")+  # Fit a smooth spline
+
+  facet_wrap(~session_id)
+```
+![](C:/Users/vigne/OneDrive/Pictures/Screenshots/stascreenshot14.png){#id .class width=900 height=400px}
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The graphs above visualize the change of the overall neuron spike rate present in each of the sessions. This is crucial to make our predictive model because the lines generated for each of the graphs are accurate responses from the neurons throughout the sessions. We assume that the higher the `mean_spike` rate is, the higher the chance of success is. An effective comparison that can be done is to compare the graphs generated here with the one above that visualizes how the success rate has changed throughout the 18 sessions. I think looking at those two would be helpful in making an assumption about our predictive model such as the correlation tends to have a more negative slope as teh number of trials increase. 
+
+```{r,echo=FALSE, eval=FALSE}
+#This chunk of code will be explained along with the output of the graphs in the paragraph below, can be found in the KNIT html
+
+ggplot(average_spike, aes(x = trail_id, y = mean_spike)) + 
+  geom_line()+
+  geom_smooth(method = "loess")+  # Fit a smooth spline
+
+  facet_wrap(~mouse_name)
+```
+![](C:/Users/vigne/OneDrive/Pictures/Screenshots/stascreenshot15.png){#id .class width=900 height=400px}
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The graphs above represent the change of overall neuron spike rate for each mouse. It's the same concept we applied to the previous set of graphs and my observation made earlier was correct, the correlation line tends to have a negative slope, meaning that the average neuron spike rate decreases as the number of trials increase. This negative correlation can mean that the mice are making a lower effort in order to get a more accurate result. It means that the mice are learning what the experiment is so the level of effort they're putting in to solve a problem decreases as the success rate increases. They're used to the experiment at this point and know their responsibility as a subject, meaning that the mice are actually getting smarter, knowing what is expected of them. I think a way to make this graph much better is to also have a line that visualizes the success rate throughout the trials. A line that has a negative slope of the average mean spike and a line that has a positive slope of the success rate would directly prove my statement just from a single graph.  
+
+```{r, echo = FALSE, eval=FALSE}
+#This code chunk will be explained in the paragraph below along with the graph in the Knitted html
+features = full_functional_tibble[,1:40]
+scaled_features <- scale(features)
+pca_result <- prcomp(scaled_features)
+pc_df <- as.data.frame(pca_result$x)
+pc_df$session_id <- full_functional_tibble$session_id
+pc_df$mouse_name <- full_functional_tibble$mouse_name
+```
+
+```{r, echo = FALSE, eval=FALSE}
+#This code chunk will be explained in the paragraph below along with the graph in the Knitted html
+ggplot(pc_df, aes(x = PC1, y = PC2, color = session_id)) +
+  geom_point() +
+  labs(title = "PCA: PC1 vs PC2")
+``` 
+![](C:/Users/vigne/OneDrive/Pictures/Screenshots/stascreenshot16.png){#id .class width=900 height=300px}
+```{r, echo = FALSE,eval=FALSE}
+#This code chunk will be explained in the paragraph below along with the graph in the Knitted html
+ggplot(pc_df, aes(x = PC1, y = PC2, color = mouse_name)) +
+  geom_point() +
+  labs(title = "PCA: PC1 vs PC2")
+```
+![](C:/Users/vigne/OneDrive/Pictures/Screenshots/stascreenshot17.png){#id .class width=900 height=300px}
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The graphs above are visual representations of the PCA, the principal component analysis. The first graph shows the dots being colored differently for each session while the second graph shows the dots being colored differently for each mouse. The PCA is obtained by projecting the original data into its principal components. Each data point in the graph is assigned to a set amount of score that has its own representation along the principal component axis. This means that the score is able to indicate how each of the observations are able to contribute to the variability that is being captured by all the principal components. A low PCA score can be attributed to that certain observation having a low representation or contribution in that respective direction. The observations seen don't match accurately with the anticipated variability that is captured with the principal component. We can see that the majority of our data for PC1 has a higher PCA while the data is mostly split in the middle for PC2. A high PCA score means that there is strong representation or contribution in that respective direction for that specific data point. From the second graph, it's seen that the mouse **Lederberg** has a high PCA for PC1 and PC2 meaning this mouse is in overall a good alignment with the principal component axis. And thsi is even moer true for **Forssmann** in PC2 as the vast majority of its data points are on the right side for PC1. And having data like this presented in a visual format helps me observe the patterns in the dataset much more efficiently than normally. The data in a table form and in a graph form with their own respective identity provides a large different in terms of understanding. The message becomes simplified and the representation of PCA through different means(mouse name/session) allows me to create a more accurate predictive model. 
+
+# Data Integration
+
+```{r, eval=FALSE}
+#Chunk explained below
+predictive_feature <- c("session_id","trail_id","contrast_right","contrast_left", "contrast_diff" ,binename)
+head(full_functional_tibble[predictive_feature])
+```
+![](C:/Users/vigne/OneDrive/Pictures/Screenshots/stascreenshot18.png){#id .class width=900 height=300px}
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The code above(included on purpose) was needed in my report to showcase how the integration part of the report would be executed. The `predictive_feature` vector was used to contain the names of the columns I needed to extract data from in the `full_functional_tibble` dataset. This vector used the data from the column names"session_id", "trail_id", "contrast_right", "contrast_left", "contrast_diff" and also took the data in the `binename` vector. I created a subet in the dataframe using the `full_functional_tibble[predictive_feature]` and this helps select only the names that match with the ones in the `predictive_feature` that we just made. Lastly, I called the head of the function so the first few lines of the data can be printed. It's able to clearly express all the values of the vector above into a single table along with the bin#. 
+
+
+
+```{r, eval=FALSE}
+#Chunk is explained below
+predictive_dat <- full_functional_tibble[predictive_feature]
+#predictive_dat$success <- as.numeric(predictive_dat$success)
+predictive_dat$trail_id <- as.numeric(predictive_dat$trail_id)
+label <- as.numeric(full_functional_tibble$success)
+X <- model.matrix(~., predictive_dat)
+head(predictive_dat$trail_id )
+head(label)
+head(X)
+```
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The code above is a continuation of the code used in this first section of this Data Integration portion. We use the same subset dataframe with the `predictive_feature` vector and extract the data from the `full_functional_tibble` dataframe. What's new in this is when we convert our data types, seen particularly when `trail_id`(yes it is trial but I'm referring to how it was given in the source code) is converted into a numeric format with the `as.numeric()` function. This is better for modeling because it treats the Trial IDs as numbers. A model matrix is then created using the `model.matrix()` function. The variables in `predictive_data` are included here and we named the model matrix as **X**, which contain the independent variables(the predictors) for our model. There's also a line of code that extracts the label, however, this isn't included in the dataframe so it's not needed for modeling here. **NOTE:This code is too long to print**. R Studio only allows a set amount of lines and this exceeds that limit. I've printed out the head of each of the outputs which can be **viewed in Github but is not included in the html file here**.
+
+# Predictive Modeling
+
+```{r, eval=FALSE}
+library(caret)
+# split
+set.seed(123) # for reproducibility
+trainIndex <- createDataPartition(label, p = .8, 
+                                  list = FALSE, 
+                                  times = 1)
+train_df <- predictive_dat[trainIndex, ]
+train_X <- X[trainIndex,]
+test_df <- predictive_dat[-trainIndex, ]
+test_X <- X[-trainIndex,]
+
+train_label <- label[trainIndex]
+test_label <- label[-trainIndex]
+```
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The code above **cannot be printed** because the results would be too long but the purpose of the code above is to train the model on **80 percent** of the trials and test it on the rest. The first thing the chunk does is set the seet to allow for reproducibility. This means that no matter the amount of times the code is run, the output shall remain the same with the `set.seed(123)` function. We then use `createDataPartition()` to split the data into what will be used for training and what will be used for testing. The argument `p = .8` in specific shows that 80 percent of our data is for training while the rest 20 percent is for testing. We also set our list = FALSE because we want our function to return a vector of indices rather than produce a list. We specify the "times" to be 1 so our data will only have 1 partition. And similar to the data integration in the section above, we use `createDataPartition()` to split the data into training and testing, denoted by `train_df` and `test_df`. This is also seen to be done with Model Matrix X, with the training/testing predictors "train_x" and test_x". Lastly, we set our labels so the data matches. For example, the response variable we want for our training should match the training predictor, so `train_label` == `train_x` and likewise for our testing data. 
+
+```{r, eval=FALSE}
+library(xgboost)
+xgb_model <- xgboost(data = train_X, label = train_label, objective = "binary:logistic", nrounds=10)
+
+```
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;![](C:/Users/vigne/OneDrive/Pictures/Screenshots/stascreenshot19.png){#id .class width=450 height=300px}
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The code above builds an Extreme Gradient Boosting model using the `xgboost()` function. We first create the xgb_model with the xgboost() command and specify our predictors(independent variables) using `data = train_X` for our training. Then the `label = train_label` refers to our response variables(independent variables), also used for training. The `objective = "binary:logistic"` specifies that this model is being used for binary classification through the process of logistic regression. And lastly, the `nrounds=10` specifies the number of iterations or as referred to here as boosting rounds that the model runs during its training. The output can be used to make predictions on new/future data and by doing so, can evalute the performance of the model.  
+
+```{r, eval=FALSE}
+predictions <- predict(xgb_model, newdata = test_X)
+predicted_labels <- as.numeric(ifelse(predictions > 0.5, 1, 0))
+accuracy <- mean(predicted_labels == test_label)
+accuracy
+
+```
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The code above makes predictions using the model we made previously. The line `predictions <- predict(xgb_model, newdata = test_X)` generates a set of predictions that have been traned from the model on the testing data (test_X). The second line converts the `predictions` or the predicted probabilities in the line above to binary labels that have a threshold of 0.5. This threshold means that if our predicted probability is greater than 0.5, it's respective label is set to 0.1 which indicates a positive class and any other scenario for the threshold will lead to 0(negative class). The accuracy is then calculated in the next line by comparing the `predicted_labels` with the actual labels `test_label`. We then use the "mean()" function to calculate what percent of our predictions are correct and then print the resulting accuracy which is **73.12992 percent**. **Note: The output and code is not Knit but can be done on Github**.
+
+```{r, eval=FALSE}
+conf_matrix <- confusionMatrix(as.factor(predicted_labels), as.factor(test_label))
+conf_matrix$table
+
+```
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;![](C:/Users/vigne/OneDrive/Pictures/Screenshots/stascreenshot20.png){#id .class width=550 height=175px}
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The first line of code in this chunk calcuates the confusion matrix based on the predicted labels `(predicted_labels)` and the actual labels from the testing dataset `(test_label)`. The second line prints the output in a table format. The performance of our algorithm can be seen from the confusion matrix above. Each row represents the instances of an actual class while each column are the instances of a predicted class. **NOTE: Output can be found in Github code, not in this KNIT report**
+
+```{r, eval=FALSE}
+library(pROC)
+auroc <- roc(test_label, predictions)
+auroc
+
+```
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;![](C:/Users/vigne/OneDrive/Pictures/Screenshots/stascreenshot21.png){#id .class width=650 height=250px}
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The AUROC stands for the Area Under the Receiver Operating Characteristic (AUROC) curve. The `test_label` in the first line refers to our true class(binary) labels that we had used for our testing dataset. The second argument is the predictions from our `predictions` and as mentioned before, are our positive class. The auroc object is then printed which is seen in the screenshot above. **NOTE: Output can be found in Github code, not in this KNIT report**. The AUROC curve is a representation of our true positive rate against the false positive rate in different thresholds. The area under the curve as denoted above is **0.7379**, which is a scalar value that summarizes the performance of the model. Since an AUC of 0.5 is equal to randomly guessing and an AUC of 1 is perfect classification, it can be assumed that we are around 73.79 percent accurate. 
+
+```{r, eval=FALSE}
+# split
+set.seed(123) # for reproducibility
+session_18_row <- which(full_functional_tibble$session_id==18)
+testIndex <- sample(session_18_row, 50, replace = FALSE)
+trainIndex <- 1:nrow(full_functional_tibble)
+trainIndex <- trainIndex[!(trainIndex %in% testIndex)]
+
+train_df <- predictive_dat[trainIndex, ]
+train_X <- X[trainIndex,]
+test_df <- predictive_dat[-trainIndex, ]
+test_X <- X[-trainIndex,]
+
+train_label <- label[trainIndex]
+test_label <- label[-trainIndex]
+head(train_label)
+head(test_label)
+```
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The code above is a continued version of the code I described previously, but this  time it's modified specifically for testing the performance of the model on 50 random trials from session 18. **The printed heads of the function can be seen on Github**.
+
+Prediction results (accuracy, confusion matrix, AUROC)
+
+```{r, eval=FALSE}
+library(xgboost)
+library(caret)
+library(pROC)
+xgb_model <- xgboost(data = train_X, label = train_label, objective = "binary:logistic", nrounds=10)
+predictions <- predict(xgb_model, newdata = test_X)
+predicted_labels <- as.numeric(ifelse(predictions > 0.5, 1, 0))
+accuracy <- mean(predicted_labels == test_label)
+accuracy
+conf_matrix <- confusionMatrix(as.factor(predicted_labels), as.factor(test_label))
+conf_matrix$table
+auroc <- roc(test_label, predictions)
+auroc
+```
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;![](C:/Users/vigne/OneDrive/Pictures/Screenshots/stascreenshot22.png){#id .class width=650 height=300px} 
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;This is the same segment of code earlier but we have once again modified it for 50 random trials in session 18. There are 10 boosting rounds that are performed using the code: `xgb_model <- xgboost(data = train_X, label = train_label, objective = "binary:logistic", nrounds=10)`, with "train_X" being the predictor matrix and "train_label" being the response vector. The next line makes the predictions as used and explained in a previous code chunk above. The trained model is being used to predict the positive class for our "test_X". Then predictions are finished with the accuracy being calculated by `predicted_labels <- as.numeric(ifelse(predictions > 0.5, 1, 0))`. The probabilities are converted into binary labels with a threshold of 0.5, with the accuracy then being calculated by comparing with the "true_labels" from `test_label`. **The accuracy here is 0.8 or 80 percent**. The confusion matrix is printed in the next line with each row representing the instances of an actual class while each column is the instance of a predicted class. Lastly, the ROC curve is made from the true labels (test_label) and predicted probabilities (predictions). Since the area under the curve as denoted above is **0.6875** we can say we are 68.75% accurate here. 
+
+```{r,eval=FALSE}
+# split
+set.seed(123) # for reproducibility
+session_1_row <- which(full_functional_tibble$session_id==1)
+testIndex <- sample(session_1_row, 50, replace = FALSE)
+trainIndex <- 1:nrow(full_functional_tibble)
+trainIndex <- trainIndex[!(trainIndex %in% testIndex)]
+
+train_df <- predictive_dat[trainIndex, ]
+train_X <- X[trainIndex,]
+test_df <- predictive_dat[-trainIndex, ]
+test_X <- X[-trainIndex,]
+
+train_label <- label[trainIndex]
+test_label <- label[-trainIndex]
+head(train_label)
+head(test_label)
+```
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;The code above is a continued version of the code I described in the first part of this segment, but this  time it's modified specifically for testing the performance of the model on 50 random trials from session 1. **The printed heads of the function can be seen on Github**.
+
+```{r,eval=FALSE}
+xgb_model <- xgboost(data = train_X, label = train_label, objective = "binary:logistic", nrounds=10)
+predictions <- predict(xgb_model, newdata = test_X)
+predicted_labels <- as.numeric(ifelse(predictions > 0.5, 1, 0))
+accuracy <- mean(predicted_labels == test_label)
+accuracy
+conf_matrix <- confusionMatrix(as.factor(predicted_labels), as.factor(test_label))
+conf_matrix$table
+auroc <- roc(test_label, predictions)
+auroc
+```
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;![](C:/Users/vigne/OneDrive/Pictures/Screenshots/stascreenshot23.png){#id .class width=650 height=300px} 
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;This is the same segment of code earlier but we have once again modified it for 50 random trials in session 1. There are 10 boosting rounds that are performed using the code: `xgb_model <- xgboost(data = train_X, label = train_label, objective = "binary:logistic", nrounds=10)`, with "train_X" being the predictor matrix and "train_label" being the response vector. The next line makes the predictions as used and explained in a previous code chunk above. The trained model is being used to predict the positive class for our "test_X". Then predictions are finished with the accuracy being calculated by `predicted_labels <- as.numeric(ifelse(predictions > 0.5, 1, 0))`. The probabilities are converted into binary labels with a threshold of 0.5, with the accuracy then being calculated by comparing with the "true_labels" from `test_label`. **The accuracy here is 0.66 or 66 percent**. The confusion matrix is printed in the next line with each row representing the instances of an actual class while each column is the instance of a predicted class. Lastly, the ROC curve is made from the true labels (test_label) and predicted probabilities (predictions). Since the area under the curve as denoted above is **0.6689** we can say we are 66.89% accurate here. I think this makes sense because we saw from the earlier graphs that we get more accurate as the sessions/trials increased. The number for the accuracy calculated by comparing with the "true_labels" from `test_label` and area under the curve was lower for the 50 random trials in session 1 as compared to session 18. This validates the graphs we created earlier and concludes that our prediction model is accurate to a certain extent. 
+
+# Prediction Performance on the Test Sets
+
+```{r,echo=FALSE}
+test1 <- readRDS("D:/141A Project/test1.rds")
+head(test1)
+```
+
+```{r,echo=FALSE}
+test2 <- readRDS("D:/141A Project/test2.rds")
+head(test2)
+```
+
+# Discussion
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;In the practice prediction performance that was conducted, I was able to see that the percent of trials that led to success had increased as the number of trials increased. One of the initial graphs printed in this report clearly indicated that the mice were having less neuron spike activity as the number of trials increased and the success rate also increased. This meant the mice were effectively learning what the problem is and how to reach the desired solution. The less neuron spike activity with the increasing success rate implies that the mice were trying less or didn't have to try as hard as the initial trials in order to get the same result. It's like mastering a concept in math, a problem gets easier the more types of it that you do. The mice were essentially trained with this problem and the average spike rate decreased throughout the trials. It was also seen that a higher level of contrast would also mean a higher success rate since the mice are able to see a larger difference in the visual stimuli. That means the highest level of success would represent the location where the visual stimuli is the highest along with the contrast difference being the highest. There is further prove of this in the model training that we did above. We can see that through the 50 random trials in session 1, there was a lower rate of success than through the 50 random trials in session 2. We used the neural recordings of the mice population that revealed the principles of distribution of the neurons that carried the visual choice behavior. The neurons encoding are less widely distributed and as seen from the data output, display unilateral encoding in the midbrain. This makes the correlation of engagement become characterized by other factors such as the suppressed neo/subcortical activity. Steinmetz states that the correlation of engagement are mostly characterized by this "enhanced" subcortical activity and this might seem suprising because the visual cortex in specific is **required** for the performance of this task. It's interesting because having an enhanced amount of activity in these regions results in a potential chance for an increased probability in the engaged states. In summary, we have managed to identify the organizing principles the surround the neuronal activities across the mouse brain. There will be an abundance of work in the future that continues to enforce upon these principles and expand to even more parts of the mouse brain, such as the brainstem and cerebellum, which were actually omitted from this study, and how the addition of this correlates to success rate in different tasks.    
+
+# Reference {-}
+
+I copied the Course Project Demo on Canvas and explained it in my own way. I used the output the student had within the downloaded .Rmd file and created my own version with a more precise and well formatted report. 
+
+Chatgpt - Some Questions were asked such as the meaning of variables but all the information was paraphrased, there was no code that was copied from Chatgpt 
+
+Steinmetz, N.A., Zatka-Haas, P., Carandini, M. et al. Distributed coding of choice, action and engagement across the mouse brain. Nature 576, 266–273 (2019). https://doi.org/10.1038/s41586-019-1787-x
+
+
